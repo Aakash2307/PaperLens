@@ -6,7 +6,7 @@ client = arxiv.Client()
 
 # Search is just a *description* of what you want — it doesn't fetch anything yet.
 search = arxiv.Search(
-    query="medical image segmentation",
+    query="Telomere Length Analysis",
     max_results=5
 )
 
@@ -19,4 +19,6 @@ for paper in results:
     print("Authors:", [author.name for author in paper.authors])
     print("Year:", paper.published.year)
     print("Abstract:", paper.summary)
+    print("Categories:", paper.categories)
+
     print("---")

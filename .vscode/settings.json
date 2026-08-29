@@ -1,0 +1,6 @@
+{
+    "python.analysis.extraPaths": [
+        "./backend/app/ingestion/fetch_"
+    ],
+    "python-envs.defaultEnvManager": "ms-python.python:venv"
+}
