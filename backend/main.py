@@ -1,10 +1,16 @@
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, HTTPException
 
-from db import ping_db
+from db import ping_db, init_db
 from paper_source import search_papers, RetrievalError
+from ranking import rank_papers
 
 app = FastAPI(title="PaperLens API")
+
+
+@app.on_event("startup")
+def on_startup():
+    init_db()
 
 
 @app.get("/health")
@@ -23,8 +29,9 @@ def health():
 @app.get("/search")
 async def search(query: str, limit: int = 20):
     """
-    Phase 1: returns raw candidate papers for a query, no ranking yet.
-    Ranking (Phase 2) will reorder this list by semantic relevance.
+    Returns candidate papers for a query, ranked by semantic
+    relevance (cosine similarity between query and abstract
+    embeddings, not just OpenAlex's default ordering).
     """
     if not query.strip():
         raise HTTPException(status_code=400, detail="query cannot be empty")
@@ -34,4 +41,5 @@ async def search(query: str, limit: int = 20):
     except RetrievalError as e:
         raise HTTPException(status_code=503, detail=str(e))
 
-    return {"query": query, "count": len(papers), "results": papers}
+    ranked = rank_papers(query, papers)
+    return {"query": query, "count": len(ranked), "results": ranked}
