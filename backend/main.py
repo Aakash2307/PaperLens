@@ -1,5 +1,7 @@
 # pyrefly: ignore [missing-import]
 from fastapi import FastAPI, HTTPException
+# pyrefly: ignore [missing-import]
+from fastapi.staticfiles import StaticFiles
 
 from db import ping_db, init_db
 from paper_source import search_papers, RetrievalError
@@ -43,3 +45,8 @@ async def search(query: str, limit: int = 20):
 
     ranked = rank_papers(query, papers)
     return {"query": query, "count": len(ranked), "results": ranked}
+
+
+# Mounted last and at "/" so /health and /search (declared above) still
+# take priority for those exact paths — this only catches everything else.
+app.mount("/", StaticFiles(directory="frontend", html=True), name="frontend")
