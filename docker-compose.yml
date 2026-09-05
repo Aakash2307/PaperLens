@@ -4,7 +4,7 @@ services:
     restart: unless-stopped
     environment:
       POSTGRES_USER: paperlens
-      POSTGRES_PASSWORD: paperlens
+      POSTGRES_PASSWORD: paperlens_secret_92x
       POSTGRES_DB: paperlens
     ports:
       - "5432:5432"
