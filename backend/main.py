@@ -29,11 +29,14 @@ def health():
 
 
 @app.get("/search")
-async def search(query: str, limit: int = 20):
+async def search(query: str, limit: int = 20, naive: bool = False):
     """
     Returns candidate papers for a query, ranked by semantic
     relevance (cosine similarity between query and abstract
     embeddings, not just OpenAlex's default ordering).
+
+    Pass ?naive=true to skip ranking and see OpenAlex's raw order
+    instead — used for Phase 4 evaluation (ranked vs. naive).
     """
     if not query.strip():
         raise HTTPException(status_code=400, detail="query cannot be empty")
@@ -42,6 +45,9 @@ async def search(query: str, limit: int = 20):
         papers = await search_papers(query, limit=limit)
     except RetrievalError as e:
         raise HTTPException(status_code=503, detail=str(e))
+
+    if naive:
+        return {"query": query, "count": len(papers), "results": papers}
 
     ranked = rank_papers(query, papers)
     return {"query": query, "count": len(ranked), "results": ranked}
