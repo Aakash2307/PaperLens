@@ -2,7 +2,7 @@ import os
 from sqlalchemy import create_engine, text
 from sqlalchemy.orm import sessionmaker
 
-DATABASE_URL = os.environ["DATABASE_URL"]
+DATABASE_URL = os.environ["postgresql+psycopg://paperlens:paperlens_secret_92x@pgvector.railway.internal:5432/paperlens"]
 
 engine = create_engine(DATABASE_URL, pool_pre_ping=True)
 SessionLocal = sessionmaker(bind=engine, autoflush=False, autocommit=False)
