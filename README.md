@@ -72,7 +72,7 @@ A deliberately honest, mixed result rather than a cherry-picked perfect scorecar
 ## Getting started (local)
 
 ```bash
-git clone https://github.com/<you>/PaperLens.git
+git clone https://github.com/Aakash2307/PaperLens.git
 cd PaperLens
 docker compose up --build
 ```
