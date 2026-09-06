@@ -4,7 +4,7 @@
 
 Tell it what you're researching — it doesn't just search, it ranks what to read first.
 
-🔗 **Live:** [paperlens-production-xxxx.up.railway.app](https://paperlens-production-xxxx.up.railway.app) *(replace with your actual Railway domain)*
+🔗 **Live:** [paperlens-production-xxxx.up.railway.app](https://paperlens-production-33ed.up.railway.app/) 
 
 ---
 
