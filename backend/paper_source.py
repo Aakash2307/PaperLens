@@ -46,6 +46,36 @@ async def search_papers(query: str, limit: int = 20) -> list[dict]:
     return _parse_papers(data)
 
 
+async def fetch_papers_page(query: str, cursor: str = "*", per_page: int = 200) -> tuple[list[dict], str | None]:
+    """
+    One page of OpenAlex results using cursor pagination — used for
+    bulk ingestion (Phase 6), where we need thousands of results per
+    query, not just the first 20 (that's what `search_papers` above
+    is for — live, per-request queries).
+
+    Returns (papers_on_this_page, next_cursor). next_cursor is None
+    when there are no more pages.
+    """
+    params = {
+        "search": query,
+        "per-page": per_page,
+        "cursor": cursor,
+        "mailto": POLITE_POOL_EMAIL,
+    }
+
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        resp = await client.get(SEARCH_URL, params=params)
+        try:
+            resp.raise_for_status()
+        except httpx.HTTPStatusError as e:
+            raise RetrievalError(f"OpenAlex error: {e}") from e
+        data = resp.json()
+
+    papers = _parse_papers(data)
+    next_cursor = data.get("meta", {}).get("next_cursor")
+    return papers, next_cursor
+
+
 def _reconstruct_abstract(inverted_index: dict | None) -> str | None:
     """
     OpenAlex stores abstracts as {word: [positions]} to save space.
