@@ -26,7 +26,7 @@ from ranking import embed_text_batch
 # particular research interest — the goal is a corpus that can
 # meaningfully answer queries from many domains, not just AI/CS.
 FIELDS = [
-    
+    "computer science",
     "medicine",
     "physics",
     "biology",
