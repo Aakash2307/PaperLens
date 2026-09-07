@@ -15,6 +15,20 @@ def embed_text(text: str) -> list[float]:
     return _model.encode(text, normalize_embeddings=True).tolist()
 
 
+def embed_text_batch(texts: list[str], batch_size: int = 64) -> list[list[float]]:
+    """
+    Embeds many texts at once. Batching lets the model process
+    several inputs per forward pass instead of one at a time — the
+    difference between ingesting 100k papers in minutes vs. hours.
+    Used by ingest.py; live per-query embedding (one query, one
+    paper at a time in rank_papers) doesn't need this.
+    """
+    if not texts:
+        return []
+    embeddings = _model.encode(texts, batch_size=batch_size, normalize_embeddings=True)
+    return embeddings.tolist()
+
+
 def _get_or_cache_embedding(session, paper: dict) -> list[float]:
     """
     Returns the cached embedding for this paper if we've seen it

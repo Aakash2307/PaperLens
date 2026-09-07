@@ -1,9 +1,7 @@
 import os
 import time
-# pyrefly: ignore [missing-import]
-from sqlalchemy import create_engine, text
-# pyrefly: ignore [missing-import]
-from sqlalchemy.orm import sessionmaker
+from sqlalchemy import create_engine, text # type: ignore
+from sqlalchemy.orm import sessionmaker # type: ignore
 
 DATABASE_URL = os.environ["DATABASE_URL"]
 
@@ -39,7 +37,9 @@ def init_db(max_retries: int = 5, base_delay_seconds: float = 2.0):
             with engine.connect() as conn:
                 conn.execute(text("CREATE EXTENSION IF NOT EXISTS vector"))
                 conn.commit()
+            _migrate_papers_columns()
             Base.metadata.create_all(engine)
+            _init_search_indexes()
             return
         except Exception as e:
             last_error = e
@@ -48,3 +48,70 @@ def init_db(max_retries: int = 5, base_delay_seconds: float = 2.0):
             time.sleep(delay)
 
     raise RuntimeError(f"init_db failed after {max_retries} attempts: {last_error}")
+
+
+def _migrate_papers_columns():
+    """
+    Phase 6 added new fields to the Paper model (authors, year, url,
+    citation_count) — but that table already existed from Phase 2 with
+    only paper_id/title/abstract/embedding. `Base.metadata.create_all()`
+    ONLY creates tables that don't exist yet; it never alters an
+    existing table's columns. Without this, the ORM's INSERT statements
+    reference columns the real table doesn't have — exactly the
+    "UndefinedColumn: authors" error this fixes. Runs before
+    create_all() so the table has the right shape either way (fresh
+    database or one carried over from an earlier phase).
+    """
+    with engine.connect() as conn:
+        conn.execute(text("""
+            DO $$
+            BEGIN
+                IF EXISTS (SELECT 1 FROM information_schema.tables WHERE table_name = 'papers') THEN
+                    ALTER TABLE papers ADD COLUMN IF NOT EXISTS authors JSON DEFAULT '[]'::json;
+                    ALTER TABLE papers ADD COLUMN IF NOT EXISTS year INTEGER;
+                    ALTER TABLE papers ADD COLUMN IF NOT EXISTS url VARCHAR;
+                    ALTER TABLE papers ADD COLUMN IF NOT EXISTS citation_count INTEGER DEFAULT 0;
+                END IF;
+            END $$;
+        """))
+        conn.commit()
+
+
+def _init_search_indexes():
+    """
+    Phase 6 additions, all idempotent:
+
+    1. `search_vector` — a generated tsvector column (title + abstract,
+       weighted so title matches score higher). This is what makes
+       full-text/BM25-style search possible; SQLAlchemy's ORM has no
+       first-class concept of a Postgres generated column, so it's
+       added here via raw DDL instead of in models.py.
+    2. A GIN index on that column — the actual inverted index that
+       makes keyword search fast over 100k+ rows instead of a full
+       table scan.
+    3. An ivfflat index on `embedding` — pgvector's approximate
+       nearest-neighbor index. At 20 candidates (Phase 1-2 scale) an
+       exact scan in Python was fine; at 100k rows, semantic search
+       needs an actual index too, not just a table column.
+    """
+    with engine.connect() as conn:
+        conn.execute(text("""
+            ALTER TABLE papers
+            ADD COLUMN IF NOT EXISTS search_vector tsvector
+            GENERATED ALWAYS AS (
+                setweight(to_tsvector('english', coalesce(title, '')), 'A') ||
+                setweight(to_tsvector('english', coalesce(abstract, '')), 'B')
+            ) STORED
+        """))
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS papers_search_vector_idx
+            ON papers USING GIN (search_vector)
+        """))
+        # ivfflat needs at least a few rows to build meaningful clusters;
+        # harmless to attempt on an empty table, just builds a trivial index.
+        conn.execute(text("""
+            CREATE INDEX IF NOT EXISTS papers_embedding_idx
+            ON papers USING ivfflat (embedding vector_cosine_ops)
+            WITH (lists = 100)
+        """))
+        conn.commit()

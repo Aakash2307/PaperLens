@@ -8,6 +8,7 @@ globally). Similar scale of coverage. Good default for an MVP under
 a deadline — swap back to Semantic Scholar later if you get a key
 and want its citation-graph features.
 """
+import asyncio
 import httpx
 
 SEARCH_URL = "https://api.openalex.org/works"
@@ -44,6 +45,60 @@ async def search_papers(query: str, limit: int = 20) -> list[dict]:
         data = resp.json()
 
     return _parse_papers(data)
+
+
+async def fetch_papers_page(
+    query: str,
+    cursor: str = "*",
+    per_page: int = 200,
+    max_retries: int = 5,
+    base_delay_seconds: float = 15.0,
+) -> tuple[list[dict], str | None]:
+    """
+    One page of OpenAlex results using cursor pagination — used for
+    bulk ingestion (Phase 6), where we need thousands of results per
+    query, not just the first 20 (that's what `search_papers` above
+    is for — live, per-request queries).
+
+    Retries with exponential backoff on 429. This matters more here
+    than for live search: a sustained bulk pull can genuinely trip
+    OpenAlex's rate limit, and once tripped, the window stays hot for
+    a while — a single retry isn't enough, and giving up on the whole
+    field (the original bug) wastes everything already fetched for it.
+
+    Returns (papers_on_this_page, next_cursor). next_cursor is None
+    when there are no more pages.
+    """
+    params = {
+        "search": query,
+        "per-page": per_page,
+        "cursor": cursor,
+        "mailto": POLITE_POOL_EMAIL,
+    }
+
+    last_error = None
+    async with httpx.AsyncClient(timeout=30.0) as client:
+        for attempt in range(max_retries):
+            resp = await client.get(SEARCH_URL, params=params)
+
+            if resp.status_code == 429:
+                delay = base_delay_seconds * (2 ** attempt)
+                last_error = f"rate limited (attempt {attempt + 1}/{max_retries})"
+                print(f"    [rate limit] backing off {delay:.0f}s...")
+                await asyncio.sleep(delay)
+                continue
+
+            try:
+                resp.raise_for_status()
+            except httpx.HTTPStatusError as e:
+                raise RetrievalError(f"OpenAlex error: {e}") from e
+
+            data = resp.json()
+            papers = _parse_papers(data)
+            next_cursor = data.get("meta", {}).get("next_cursor")
+            return papers, next_cursor
+
+    raise RetrievalError(f"OpenAlex still rate-limiting after retries: {last_error}")
 
 
 def _reconstruct_abstract(inverted_index: dict | None) -> str | None:
