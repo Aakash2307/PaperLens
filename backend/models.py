@@ -1,5 +1,8 @@
+# pyrefly: ignore [missing-import]
 from sqlalchemy import String, Integer, JSON, Boolean
+# pyrefly: ignore [missing-import]
 from sqlalchemy.orm import Mapped, mapped_column, DeclarativeBase
+# pyrefly: ignore [missing-import]
 from pgvector.sqlalchemy import Vector
 
 # MiniLM-L6-v2 outputs 384-dimensional vectors.

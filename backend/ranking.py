@@ -1,5 +1,6 @@
 import numpy as np
 from sentence_transformers import SentenceTransformer
+# pyrefly: ignore [missing-import]
 from sqlalchemy import select
 
 from db import SessionLocal
